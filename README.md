@@ -151,8 +151,8 @@ Mensagem  | Descrição  | Exemplo
 
 
 ## 9. Autoria
-Desenvolvido como requisito para a disciplina **Redes de Computadores** por:
+Desenvolvido como requisito para a disciplina **Redes de Computadores I** por:
 
 * Cibelle Sousa Rodrigues  
-* David Junio Mariano  
+* David Júnio Mariano dos Santos
 * Laisa Pereira França
