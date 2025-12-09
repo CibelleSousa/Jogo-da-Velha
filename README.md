@@ -8,7 +8,6 @@ O objetivo principal é demonstrar a **sincronização de estado em tempo real**
 
 O sistema conta com uma interface gráfica (GUI) desenvolvida em Pygame e um servidor multithread capaz de gerenciar a lógica da partida e o roteamento de mensagens.
 
----
 
 ## 2. Propósito do Software
 
@@ -17,7 +16,6 @@ O sistema conta com uma interface gráfica (GUI) desenvolvida em Pygame e um ser
 * Garantir que a lógica do jogo permaneça centralizada no servidor e que os clientes apenas renderizem o estado.
 * Demonstrar conceitos de **concorrência** (threads no servidor e cliente) e **UX responsiva** (pop-ups, turnos, pedidos de reinício).
 
----
 
 ## 3. Motivação da Escolha do Protocolo de Transporte (TCP)
 
@@ -29,7 +27,6 @@ Foi selecionado o protocolo TCP (Transmission Control Protocol) para a camada de
 2. **Ordenação:** A sequência de jogadas precisa ser preservada. Se o Jogador X jogar antes do Jogador O, o servidor processará nessa ordem.
 3. **Tolerância à Latência:** A pequena latência do TCP não afeta um jogo de turnos. A consistência é mais importante que a velocidade.
 
----
 
 ## 4. Arquitetura e Componentes
 
@@ -59,7 +56,6 @@ A aplicação possui três arquivos principais:
 * Usa **threading** para manter GUI responsiva enquanto aguarda mensagens do servidor.
 * Pop-ups para pedidos de reinício, confirmação e alertas de desconexão.
 
----
 
 ## 5. Requisitos Mínimos
 
@@ -80,7 +76,6 @@ Para instalar a dependência gráfica (Pygame):
 pip install pygame
 ```
 
----
 
 ## 6. Instruções de Execução
 
@@ -106,7 +101,6 @@ python client.py
 ```
 3. Abra dois clientes para iniciar a partida multiplayer.
 
----
 
 ## 7. Protocolo da Camada de Aplicação
 
@@ -150,13 +144,11 @@ Mensagem  | Descrição  | Exemplo
 5. Desconexão:
    * Servidor envia `OPONENTE_DESCONECTOU` ao cliente restante
 
----
 
 ## 8. Diagrama de Sequência
 
 ![Diagrama de Sequência](diagrama.jpeg)
 
----
 
 ## 9. Autoria
 Desenvolvido como requisito para a disciplina **Redes de Computadores** por:
