@@ -11,6 +11,8 @@ PORT = 50000
 tabuleiro = [[None]*3 for _ in range(3)]
 jogador_atual = 'X'
 clientes = []
+simbolos_disponiveis = ['X', 'O']
+
 
 # VERIFICAR O VENCEDOR
 def verificar_vencedor():
@@ -120,35 +122,66 @@ def handle_client(conn, addr, simbolo: str):
                         jogador_atual = 'O' if simbolo == 'X' else 'X'
                         broadcast(f"VEZ {jogador_atual}")
             elif msg == 'SOLICITAR_REINICIO':
-                enviar_para_oponente(conn, "PEDIDO_REINICIO")
+                if len(clientes) < 2:
+                    # Menos de 2 jogadores, não há oponente para reinício
+                    conn.send("REINICIO_NEGADO".encode())
+                else:
+                    enviar_para_oponente(conn, "PEDIDO_REINICIO")
             elif msg == 'CONFIRMAR_REINICIO':
                 reiniciar_jogo()
             elif msg == 'NEGAR_REINICIO':
                 enviar_para_oponente(conn, "REINICIO_NEGADO")
         except Exception as e:
-            print(f'Erro na conexão com {simbolo}: {e}')
+            print(f'Erro na conexão com {simbolo}')
             break
-    conn.close()
+    
+    # REMOVE DA LISTA
     if conn in clientes:
         clientes.remove(conn)
+    
+    # DEVOLVE SIMBOLO PARA A FILA
+    simbolos_disponiveis.append(simbolo)
+
+    # AVISAR O OPONENTE
+    enviar_para_oponente(conn, "OPONENTE_DESCONECTOU")
+    conn.close()
+    reiniciar_jogo()
+
+
+# OBTER IP DA REDE
+
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # ipv4 e udp
+        # não precisa existir — só serve para descobrir a rota padrão
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1" # localhost
 
 # INICIALIZAR O SERVIDOR
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # ipv4 e tcp
 server.bind((HOST, PORT))
 server.listen(2) # no máximo dois clientes
-print(f'Servidor rodando em {HOST}:{PORT}')
+print(f'Servidor rodando em {get_local_ip()}:{PORT}')
 # INICIAR A THREAD DE ADMINISTRAÇÃO
 threading.Thread(target=console_admin, daemon=True).start()
 
 
 while True:
-    if len(clientes) < 2:
-        conn, addr = server.accept()
-        clientes.append(conn)
+    
+    conn, addr = server.accept()
 
-        simbolo = 'X' if len(clientes) == 1 else 'O'
+    if not simbolos_disponiveis:
+        # Servidor lotado, então rejeita a conexão
+        conn.close()
+        print(f"Conexão recusada de {addr}")
+        continue
+    
+    simbolo = simbolos_disponiveis.pop(0)
+    clientes.append(conn)
 
-        thread = threading.Thread(target=handle_client, args=(conn, addr, simbolo)) # cria um processo paralelo para cada cliente
-        thread.start()
-    else:
-        time.sleep(1) # mais alguem tentou se conectar
+    thread = threading.Thread(target=handle_client, args=(conn, addr, simbolo)) # cria um processo paralelo para cada cliente
+    thread.start()

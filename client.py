@@ -1,13 +1,16 @@
 import sys
 import socket
 import threading
-import pygame
 import theme
+import os
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1" # REMOVER MENSAGEM PADRÃO DO PYGAME
+import pygame
+
 
 # CONFIGURAR A REDE
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
-    client.connect(('192.168.0.101', 50000))
+    client.connect(('10.0.0.10', 50000))
 except:
     print('Não foi possível conectar ao servidor.')
     sys.exit()
@@ -23,7 +26,7 @@ clock = pygame.time.Clock()
 fonte_simbolo = pygame.font.SysFont("arial", 100, bold=True)
 fonte_ui = pygame.font.SysFont("arial", 24)
 fonte_popup_titulo = pygame.font.SysFont("arial", 40, bold=True) 
-fonte_popup_solicitacao = pygame.font.SysFont("arial", 30, bold=True) 
+fonte_popup_solicitacao = pygame.font.SysFont("arial", 20, bold=True) 
 fonte_popup_nome = pygame.font.SysFont("arial", 35)
 
 # ESTADO DO JOGO
@@ -32,10 +35,13 @@ meu_simbolo = None
 jogador_atual = 'X'
 game_over = False
 vencedor_nome = None
+running = True
+disconnect_reason = None
 
 # ESTADOS DE UX
-popup_pedido_reinicio = False # Se True, mostra janela "Oponente quer reiniciar"
+popup_pedido_reinicio = False # Se True, mostra texto "Aguardando oponente..."
 aguardando_resposta = False   # Se True, mostra texto "Aguardando oponente..."
+popup_oponente_desconectou = False # Se True, mostra texto "Oponente desconectou"
 
 # RETÂNGULOS DE UI
 rect_botao_main = pygame.Rect(0, 0, 140, 40)
@@ -51,11 +57,13 @@ rect_btn_nao = pygame.Rect(0, 0, 100, 40)
 
 # COMUNICAR COM SERVIDOR
 def receber_mensagem():
-    global tabuleiro, jogador_atual, meu_simbolo, game_over, vencedor_nome, popup_pedido_reinicio, aguardando_resposta
+    global tabuleiro, jogador_atual, meu_simbolo, game_over, vencedor_nome, popup_pedido_reinicio, aguardando_resposta, running, disconnect_reason, popup_oponente_desconectou
     while True:
         try:
             msg = client.recv(4096).decode()
             if not msg:
+                disconnect_reason = "Servidor fechou a conexão (lotado ou indisponível)."
+                running = False
                 break
             if "ID" in msg:
                 partes = msg.split("ID ")
@@ -79,17 +87,26 @@ def receber_mensagem():
                 game_over = True
                 vencedor_nome = 'Empate' if vencedor_codigo == 'V' else f"Jogador {vencedor_codigo}"
             if "RESET" in  msg:
-                game_over = False
-                vencedor_nome = None
-                popup_pedido_reinicio = False
-                aguardando_resposta = False
+                if not popup_oponente_desconectou:
+                    game_over = False
+                    vencedor_nome = None
+                    popup_pedido_reinicio = False
+                    aguardando_resposta = False
             if "PEDIDO_REINICIO" in msg:
                 popup_pedido_reinicio = True
             if "REINICIO_NEGADO" in msg:
                 aguardando_resposta = False
                 print("Oponente negou reinicio da partida.")
+            if "OPONENTE_DESCONECTOU" in msg:
+                game_over = True
+                vencedor_nome = "Oponente desconectou"
+                popup_pedido_reinicio = False
+                aguardando_resposta = False
+                popup_oponente_desconectou = True
+                continue
         except Exception as e:
             print(f"Erro ao receber dados: {e}")
+            running = False
             break
 
 thread_rede = threading.Thread(target=receber_mensagem, daemon=True)
@@ -152,8 +169,28 @@ def desenhar_popups():
     tela.blit(s, (0,0))
 
     centro_x, centro_y = theme.LARGURA // 2, theme.ALTURA_TOTAL // 2
+
+    if popup_oponente_desconectou:
+        rect_box = pygame.Rect(0, 0, 400, 200)
+        rect_box.center = (centro_x, centro_y)
+        pygame.draw.rect(tela, theme.PRETO, rect_box, border_radius=20)
+        pygame.draw.rect(tela, theme.BRANCO, rect_box.inflate(-10,-10), border_radius=20)
+
+        t_tit = fonte_popup_titulo.render("Fim de Jogo!", True, theme.PRETO)
+        tela.blit(t_tit, t_tit.get_rect(center=(centro_x, centro_y - 40)))
+
+        t_nome = fonte_popup_nome.render("Oponente desconectou!", True, theme.VERMELHO)
+        tela.blit(t_nome, t_nome.get_rect(center=(centro_x, centro_y)))
+
+        rect_btn_jogar_novo.center = (centro_x, centro_y + 60)
+        pygame.draw.rect(tela, theme.CINZA2, rect_btn_jogar_novo, border_radius=10)
+        pygame.draw.rect(tela, theme.PRETO, rect_btn_jogar_novo, 2, border_radius=10)
+        t_btn = fonte_ui.render("OK", True, theme.PRETO)
+        tela.blit(t_btn, t_btn.get_rect(center=rect_btn_jogar_novo.center))
+        return  # sai da função, não desenha outros popups
+    
     if popup_pedido_reinicio:
-        rect_box = pygame.Rect(0, 0, 450, 200)
+        rect_box = pygame.Rect(0, 0, 315, 140)
         rect_box.center = (centro_x, centro_y)
         pygame.draw.rect(tela, theme.PRETO, rect_box, border_radius=15)
         pygame.draw.rect(tela, theme.BRANCO, rect_box.inflate(-6,-6), border_radius=15)
@@ -162,8 +199,8 @@ def desenhar_popups():
         tela.blit(txt_p, txt_p.get_rect(center=(centro_x, centro_y - 40)))
 
         # Botões Sim / Não
-        rect_btn_sim.center = (centro_x - 70, centro_y + 40)
-        rect_btn_nao.center = (centro_x + 70, centro_y + 40)
+        rect_btn_sim.center = (centro_x - 70, centro_y + 28)
+        rect_btn_nao.center = (centro_x + 70, centro_y + 28)
 
         pygame.draw.rect(tela, theme.VERDE_CLARO, rect_btn_sim, border_radius=8)
         pygame.draw.rect(tela, theme.PRETO, rect_btn_sim, 2, border_radius=8)
@@ -179,32 +216,33 @@ def desenhar_popups():
         rect_box = pygame.Rect(0, 0, 400, 250)
         rect_box.center = (centro_x, centro_y)
         pygame.draw.rect(tela, theme.PRETO, rect_box, border_radius=20)
-        pygame.draw.rect(tela, theme.BRANCO, rect_box.inflate(-10,-10), border_radius=20)
+        pygame.draw.rect(tela, theme.BRANCO, rect_box.inflate(-10, -10), border_radius=20)
 
         t_tit = fonte_popup_titulo.render("Fim de Jogo!", True, theme.PRETO)
         tela.blit(t_tit, t_tit.get_rect(center=(centro_x, centro_y - 60)))
-        
-        cor_v = theme.VERDE_ESCURO if "Jogador" in str(vencedor_nome) else theme.PRETO
-        t_nome = fonte_popup_nome.render(f"{vencedor_nome} venceu!" if "Jogador" in str(vencedor_nome) else "Deu Velha!", True, cor_v)
+
+        # Texto e botão baseado no vencedor
+        if vencedor_nome == "Empate":
+            texto_final = "Deu Velha!"
+            cor_v = theme.PRETO
+            texto_botao = "Jogar Novamente"
+        else:
+            texto_final = f"{vencedor_nome} venceu!"
+            cor_v = theme.VERDE_ESCURO
+            texto_botao = "Jogar Novamente"
+
+        t_nome = fonte_popup_nome.render(texto_final, True, cor_v)
         tela.blit(t_nome, t_nome.get_rect(center=(centro_x, centro_y - 10)))
 
-        # Botão Jogar Novamente (que também solicita reinício)
         rect_btn_jogar_novo.center = (centro_x, centro_y + 60)
-        
-        # Se eu já pedi, mostro "Aguardando..." no botão
-        if aguardando_resposta:
-             pygame.draw.rect(tela, theme.CINZA, rect_btn_jogar_novo, border_radius=10)
-             t_btn = fonte_ui.render("Aguardando...", True, theme.BRANCO)
-        else:
-             pygame.draw.rect(tela, theme.CINZA2, rect_btn_jogar_novo, border_radius=10)
-             pygame.draw.rect(tela, theme.PRETO, rect_btn_jogar_novo, 2, border_radius=10)
-             t_btn = fonte_ui.render("Jogar Novamente", True, theme.PRETO)
-             
+        pygame.draw.rect(tela, theme.CINZA2, rect_btn_jogar_novo, border_radius=10)
+        pygame.draw.rect(tela, theme.PRETO, rect_btn_jogar_novo, 2, border_radius=10)
+        t_btn = fonte_ui.render(texto_botao, True, theme.PRETO)
         tela.blit(t_btn, t_btn.get_rect(center=rect_btn_jogar_novo.center))
 
 
 # MAIN
-while True:
+while running:
     if meu_simbolo:
         pygame.display.set_caption(f"Jogo da Velha - Você joga com {meu_simbolo}")
     mouse_pos = pygame.mouse.get_pos()
@@ -222,7 +260,13 @@ while True:
                     client.send("NEGAR_REINICIO".encode())
                     popup_pedido_reinicio = False
             elif game_over:
-                if rect_btn_jogar_novo.collidepoint(mouse_pos):
+                if vencedor_nome == "Oponente desconectou" and rect_btn_jogar_novo.collidepoint(mouse_pos):
+                    popup_oponente_desconectou = False
+                    game_over = False
+                    vencedor_nome = None
+                    popup_pedido_reinicio = False
+                    aguardando_resposta = False
+                elif rect_btn_jogar_novo.collidepoint(mouse_pos):
                     client.send("SOLICITAR_REINICIO".encode())
                     aguardando_resposta = True
             else:
@@ -246,3 +290,15 @@ while True:
         desenhar_popups()
     pygame.display.update()
     clock.tick(theme.FPS)
+
+try:
+    client.close()
+except:
+    pass
+
+# opcional: mostrar mensagem final no terminal ou num popup simples antes de sair
+if disconnect_reason:
+    print(disconnect_reason)
+
+pygame.quit()
+sys.exit()
