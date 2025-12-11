@@ -147,7 +147,7 @@ Mensagem  | Descrição  | Exemplo
 
 ## 8. Diagrama de Sequência
 
-![Diagrama de Sequência](diagrama.jpeg)
+![Diagrama de Sequência](diagram.jpeg)
 
 
 ## 9. Autoria
